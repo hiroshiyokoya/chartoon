@@ -266,6 +266,8 @@ fn now_unix() -> i64 {
 /// - `AUTH_EXPIRED` → 既存の `TOKEN_EXPIRED` を維持（viewer の既存分岐をそのまま使う）。
 /// - `NETWORK` → 既存の `FETCH_FAILED` に寄せる。viewer 側から見れば「デスクトップが取得に失敗した・
 ///   再試行して」で挙動は同じなので、viewer に新コードを増やす価値が無い。
+/// - `CORAL_UPGRADE` … 任天堂が NSO の版を上げ、認証側がまだ追いついていない（#765）。
+///   再ログインも再試行も直らない。未知コードを受け取る古い viewer は「その他の失敗」扱い。
 fn classify_error(message: &str) -> &'static str {
     if message.starts_with("NOT_LOGGED_IN") {
         "NOT_LOGGED_IN"
@@ -275,6 +277,8 @@ fn classify_error(message: &str) -> &'static str {
         "UPSTREAM_UNAVAILABLE"
     } else if message.starts_with("AUTH_EXPIRED") {
         "TOKEN_EXPIRED"
+    } else if message.starts_with("CORAL_UPGRADE") {
+        "CORAL_UPGRADE"
     } else if message.starts_with("NETWORK") {
         "FETCH_FAILED"
     } else if message.contains("invalid_grant") {
@@ -1579,6 +1583,10 @@ mod tests {
             classify_error("NETWORK: bullet token 取得失敗: fetch failed (status=- upstream_error=-)"),
             "FETCH_FAILED"
         );
+        assert_eq!(
+            classify_error("CORAL_UPGRADE: bullet token 取得失敗: [znc] Upgrade required. (status=200 upstream_error=-)"),
+            "CORAL_UPGRADE"
+        );
         // 理由不明の bullet token 失敗を「失効」と決めつけない（本 Issue の核心）
         assert_eq!(
             classify_error("bullet token 取得失敗: 何かよく分からない失敗"),
@@ -1596,6 +1604,7 @@ mod tests {
             (Some(403), None, "forbidden", "TOKEN_EXPIRED"),
             (Some(400), Some("invalid_grant"), "bad request", "TOKEN_EXPIRED"),
             (None, None, "fetch failed", "FETCH_FAILED"),
+            (Some(200), None, "[znc] Upgrade required.", "CORAL_UPGRADE"),
         ];
         for (status, upstream, message, expected) in cases {
             let kind = crate::nxapi::classify_failure(*status, *upstream, message);

@@ -170,6 +170,8 @@
     "statinkNoApiKeyMessage": "設定画面で stat.ink の API キーを入力してください。",
     "rateLimitedTitle": "認証の回数制限に達しました",
     "rateLimitedMessage": "{{detail}}\n\nしばらく待ってから再試行してください（再ログインは不要です）。",
+    "coralUpgradeTitle": "任天堂アプリの更新待ち",
+    "coralUpgradeMessage": "任天堂が Nintendo Switch Online アプリの版を上げたため、いまは認証できません。ログインし直しても直りません。何度も試すと回数制限に当たるので、認証側が追いつくまで待ってください。",
     "gearNotLoggedInMessage": "Nintendo アカウントにログインしていません。「設定」タブからログインしてください。"
   },
   "notify": {

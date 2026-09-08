@@ -83,6 +83,7 @@ export type FetchErrorKind =
   | 'gear_fetch_in_progress'
   | 'statink_no_api_key'
   | 'rate_limited'
+  | 'coral_upgrade'
   | 'unknown'
 
 export interface FetchError {
@@ -94,7 +95,7 @@ export interface FetchError {
 }
 
 /** バックエンドが付ける機械可読プリフィクス（`app/src-tauri/src/nxapi.rs` の `FailureKind::code`）。 */
-const ERROR_CODE_PREFIX = /^(NOT_LOGGED_IN|UPSTREAM_UNAVAILABLE|AUTH_EXPIRED|NETWORK|FETCH_IN_PROGRESS|GEAR_FETCH_IN_PROGRESS|STATINK_NO_API_KEY|RATE_LIMITED)\s*:\s*/
+const ERROR_CODE_PREFIX = /^(NOT_LOGGED_IN|UPSTREAM_UNAVAILABLE|AUTH_EXPIRED|NETWORK|FETCH_IN_PROGRESS|GEAR_FETCH_IN_PROGRESS|STATINK_NO_API_KEY|RATE_LIMITED|CORAL_UPGRADE)\s*:\s*/
 
 /**
  * Rust 側のエラー文字列をフロント向けに分類する。
@@ -154,6 +155,17 @@ export function parseFetchError(raw: unknown): FetchError {
     }
   }
 
+  // 任天堂が NSO の版を上げ、認証側がまだ追いついていない（#765）。
+  // 再ログインも再試行も直らない。枠だけ減る。
+  if (code === 'CORAL_UPGRADE') {
+    return {
+      kind:    'coral_upgrade',
+      title:   i18n.t('errors.coralUpgradeTitle'),
+      message: i18n.t('errors.coralUpgradeMessage'),
+      hint:    'wait',
+    }
+  }
+
   // 外部サービス（znca-api 等）の一時障害。**再ログインを促さない** — トークンは生きている。
   if (code === 'UPSTREAM_UNAVAILABLE') {
     return {
@@ -180,6 +192,16 @@ export function parseFetchError(raw: unknown): FetchError {
       title:   i18n.t('errors.networkTitle'),
       message: i18n.t('errors.networkMessage', { detail }),
       hint:    'retry',
+    }
+  }
+
+  // 分類プリフィクスが付かない経路でも、任天堂の版上げは再ログイン案内にしない（#765）。
+  if (/upgrade required/i.test(detail)) {
+    return {
+      kind:    'coral_upgrade',
+      title:   i18n.t('errors.coralUpgradeTitle'),
+      message: i18n.t('errors.coralUpgradeMessage'),
+      hint:    'wait',
     }
   }
 
