@@ -177,10 +177,11 @@ export default function App() {
     const fe = parseFetchError(err)
     const action =
       fe.hint === 'settings' ? { label: t('common.openSettings'), onClick: () => openSettings('link') } :
+      fe.hint === 'wait'     ? undefined :
       retry                  ? { label: t('common.retry'),     onClick: retry } :
       undefined
-    // 未ログイン・外部サービスの一時障害は「アプリが壊れた」ではないので warning 止まり(#399)。
-    const soft = fe.kind === 'not_logged_in' || fe.kind === 'upstream_unavailable'
+    // 未ログイン・外部サービスの一時障害・NSO 版待ちは「アプリが壊れた」ではないので warning 止まり。
+    const soft = fe.kind === 'not_logged_in' || fe.kind === 'upstream_unavailable' || fe.kind === 'coral_upgrade'
     notify({ kind: soft ? 'warning' : 'error', title: fe.title, message: fe.message, action, durationMs: 0 })
   }
 

@@ -28,6 +28,11 @@ pub enum FailureKind {
     /// **待つ以外にできることが無い。** 再ログインを促しても、再試行しても意味がないので、
     /// 失敗として騒ぎ立てずに回復時刻を伝える（#616）。
     RateLimited,
+    /// 任天堂が NSO アプリの版を上げ、認証側（znca-api）がまだ追いついていない（#765）。
+    ///
+    /// `[znc] Upgrade required` は HTTP 200 で来る。ログインし直しても、すぐ再試行しても
+    /// 直らない。枠だけ減るので再試行を案内しない。
+    CoralUpgrade,
     /// 上のいずれとも判定できないもの。憶測で認証エラー扱いしない。
     Unknown,
 }
@@ -43,6 +48,7 @@ impl FailureKind {
             FailureKind::AuthExpired => Some("AUTH_EXPIRED"),
             FailureKind::Network => Some("NETWORK"),
             FailureKind::RateLimited => Some("RATE_LIMITED"),
+            FailureKind::CoralUpgrade => Some("CORAL_UPGRADE"),
             FailureKind::Unknown => None,
         }
     }
@@ -129,7 +135,11 @@ pub fn classify_failure(
         return FailureKind::RateLimited;
     }
 
-    // 1. 外部サービスの一時障害
+    // 0.5 任天堂が NSO の版を上げた（#765）。HTTP 200 で来るので 5xx より先でなくてよいが、
+    // 401 に倒すと再ログインを促す。枠を減らす再試行も案内しない。
+    if lower.contains("upgrade required") {
+        return FailureKind::CoralUpgrade;
+    }
     if matches!(status, Some(s) if (500..600).contains(&s)) {
         return FailureKind::UpstreamUnavailable;
     }
@@ -319,6 +329,23 @@ mod tests {
         // 文字列化したときに前置きが付き、上位が見分けられること。
         let e = NxapiError::new(FailureKind::RateLimited, "bullet token 取得失敗: Too many attempts");
         assert!(e.to_string().starts_with("RATE_LIMITED:"), "{e}");
+    }
+
+    /// HTTP 200 の `[znc] Upgrade required` は再ログインでも再試行でも直らない（#765）。
+    #[test]
+    fn upgrade_required_is_coral_upgrade_not_auth() {
+        let e = failure(serde_json::json!({
+            "ok": false,
+            "error": "[znc] Upgrade required.",
+            "status": 200,
+            "upstream_error": null,
+        }));
+        assert_eq!(e.kind, FailureKind::CoralUpgrade);
+        assert!(e.to_string().starts_with("CORAL_UPGRADE: bullet token 取得失敗:"));
+        assert_eq!(
+            classify_failure(Some(200), None, "bullet token 取得失敗: [znc] Upgrade required."),
+            FailureKind::CoralUpgrade,
+        );
     }
 
     /// 500 と一緒に来ても回数制限を優先すること（判定順を守る）。

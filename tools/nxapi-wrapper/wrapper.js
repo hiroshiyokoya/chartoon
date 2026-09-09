@@ -469,10 +469,16 @@ async function tokenState(storage, sessionToken) {
  */
 async function withAuthContext(storage, nsid, message) {
   const parts = [message];
-  if (/timeout|ETIMEDOUT/i.test(message)) {
+    if (/timeout|ETIMEDOUT/i.test(message)) {
     parts.push(
       '任天堂側または nxapi-znca-api が応答しませんでした。' +
         'こちらの設定や回数制限の問題ではないので、少し待ってからもう一度お試しください。',
+    );
+  }
+  if (/upgrade required/i.test(message)) {
+    parts.push(
+      '任天堂が Nintendo Switch Online アプリの版を上げたため、いまの認証では通れません。' +
+        'ログインし直しても、すぐ再試行しても直りません。認証の回数だけ減ります。',
     );
   }
   const hint = await rateLimitHint(storage, nsid, message);
